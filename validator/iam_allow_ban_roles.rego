@@ -1,5 +1,5 @@
 #
-# Copyright 2019 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,32 +14,53 @@
 # limitations under the License.
 #
 
-package templates.gcp.GCPIAMAllowBanRolesConstraintV1
+package templates.gcp.TFGCPIAMAllowBanRolesConstraintV1
 
-import data.validator.gcp.lib as lib
-
-deny[{
+violation[{
 	"msg": message,
 	"details": metadata,
 }] {
-	constraint := input.constraint
-	lib.get_constraint_params(constraint, params)
-	asset := input.asset
+	# NOTE: For Terraform review object, the following schema is followed:
+	# review: {
+	# 	change: {
+	# 		actions: ["create"],
+	# 		after: {
+	#			condition: []
+	#			members: []
+	#			project:
+	# 			role: 
+	# 		}
+	# 	},
+	# 	mode:
+	# 	name: 
+	# 	provider_name:
+	# 	type:
+	# }
 
-	binding := asset.iam_policy.bindings[_]
-	role := binding.role
+	# Updating Gatekeeper format for Terraform Resource Changes, v1beta1
+	params := input.parameters
 
-	matches_found = {r | r := role; glob.match(params.roles[_], ["/"], r)}
+	# Use input.review for TF changes (see schema above)
+	resource := input.review
 
-	mode := lib.get_default(params, "mode", "allow")
+	resource.type == "google_project_iam_binding"
 
-	desired_count := target_match_count(mode)
+	not resource.change.actions[0] == "delete"
+
+	# Get the role to be binded (ie. roles/resourcemanager.projectIamAdmin)
+	role := resource.change.after.role
+
+	matches_found = [r | r := config_pattern(role); glob.match(params.roles[_], [], r)]
+
+	mode := object.get(params, "mode", "allowlist")
+
+	target_match_count(mode, desired_count)
 	count(matches_found) != desired_count
 
-	message := output_msg(desired_count, asset.name, role)
+	message := output_msg(desired_count, resource.name, role)
 
 	metadata := {
-		"resource": asset.name,
+		"resource": resource.name,
 		"role": role,
 	}
 }
@@ -50,11 +71,11 @@ deny[{
 
 # Determine the overlap between matches under test and constraint
 target_match_count(mode) = 0 {
-	mode == "ban"
+	mode == "denylist"
 }
 
 target_match_count(mode) = 1 {
-	mode == "allow"
+	mode == "allowlist"
 }
 
 # Output message based on type of violation
@@ -66,4 +87,12 @@ output_msg(1, asset_name, role) = msg {
 	msg := sprintf("%v is NOT in the allowed list of IAM policy for %v", [role, asset_name])
 }
 
-#ENDINLINE
+# If the member in constraint is written as a single "*", turn it into super
+# glob "**". Otherwise, we won't be able to match everything.
+config_pattern(old_pattern) = "**" {
+	old_pattern == "*"
+}
+
+config_pattern(old_pattern) = old_pattern {
+	old_pattern != "*"
+}

@@ -1,5 +1,5 @@
 #
-# Copyright 2020 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
 # limitations under the License.
 #
 
-package templates.gcp.GCPIAMCustomRolePermissionsConstraintV1
+package templates.gcp.TFGCPIAMCustomRolePermissionsConstraintV1
 
-template_name := "GCPIAMCustomRolePermissionsConstraintV1"
+template_name := "TFGCPIAMCustomRolePermissionsConstraintV1"
 
 import data.validator.test_utils as test_utils
 
-import data.test.fixtures.iam_custom_role_permissions.assets as fixture_assets
+import data.test.fixtures.iam_custom_role_permissions.assets.resource_changes as fixture_assets
 
 import data.test.fixtures.iam_custom_role_permissions.constraints.iam_custom_role_permissions_allowlist as iam_custom_role_permissions_allowlist
 import data.test.fixtures.iam_custom_role_permissions.constraints.iam_custom_role_permissions_allowlist_all as iam_custom_role_permissions_allowlist_all

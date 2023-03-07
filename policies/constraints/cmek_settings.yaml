@@ -1,5 +1,4 @@
-#
-# Copyright 2020 Google LLC
+# Copyright 2019 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 apiVersion: constraints.gatekeeper.sh/v1alpha1
-kind: GCPRestrictedFirewallRulesConstraintV1
-eetadata:
-  name: restrict-firewall-rule-advanced-ingress-egress
+kind: GCPCMEKSettingsConstraintV1
+metadata:
+  name: cmek_rotation
+  annotations:
+    description: Checks multiple CMEK key settings (protection level, algorithm, purpose,
+      rotation period).
 spec:
   severity: high
   match:
-    ancestries: ["organizations/**"]
+    ancestries:
+    - "organizations/**"
   parameters:
-    mode: "denylist"
-    rules:
-      - direction: "any"
-        rule_type: "denied"
-        enabled: true
-      - direction: "EGRESS"
-        rule_type: "allowed"
+    # Optionally specify the required key rotation period.  Default is 365 days
+    # Valid time units are  "ns", "us", "ms", "s", "m", "h"
+    # This is 365 days
+    rotation_period: 8760h
+    algorithm: GOOGLE_SYMMETRIC_ENCRYPTION
+    purpose: ENCRYPT_DECRYPT
+    protection_level: SOFTWARE

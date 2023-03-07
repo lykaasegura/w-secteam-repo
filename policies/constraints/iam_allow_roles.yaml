@@ -1,4 +1,4 @@
-# Copyright 2019 Google Inc.
+# Copyright 2022 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,24 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-apiVersion: constraints.gatekeeper.sh/v1alpha1
-kind: GCPIAMAllowBanRolesConstraintV1
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: TFGCPIAMAllowBanRolesConstraintV1
 metadata:
-  name: iam_allow_roles
+  name: iam-allow-roles
   annotations:
-    description: Only the roles in this list are allowed. All other roles trigger violation.
+    description: Allow only the listed IAM role bindings to be created. This
+      constraint is member-agnostic.
 spec:
   severity: high
   match:
     target: # {"$ref":"#/definitions/io.k8s.cli.setters.target"}
-    - "organizations/**"
+      - "organizations/**"
     exclude: [] # optional, default is no exclusions
   parameters:
-    mode: "allow"
+    mode: "allowlist"
     roles:
-      - "roles/appengine.appViewer"
       - "roles/logging.viewer"
-      - "organizations/[XXXXXXXXX]/roles/custom_role_org_s"
-      - "projects/[XXXXXXXXX/roles/custom_role_proj_s"
-      # allow all roles, use with caution
-      # - "roles/*"
+      # - "roles/resourcemanager.projectIamAdmin"

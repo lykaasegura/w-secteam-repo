@@ -1,5 +1,5 @@
 #
-# Copyright 2019 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,30 +14,61 @@
 # limitations under the License.
 #
 
-package templates.gcp.GCPIAMAllowedPolicyMemberDomainsConstraintV2
+package templates.gcp.TFGCPIAMAllowedPolicyMemberDomainsConstraintV2
 
-import data.validator.gcp.lib as lib
+# import data.validator.gcp.lib as lib
 
-deny[{
+violation[{
 	"msg": message,
 	"details": metadata,
 }] {
-	constraint := input.constraint
-	lib.get_constraint_params(constraint, params)
-	asset := input.asset
-	unique_members := {m | m = asset.iam_policy.bindings[_].members[_]}
-	member_type_allowlist := lib.get_default(params, "member_type_allowlist", ["projectOwner", "projectEditor", "projectViewer"])
+	# NOTE: For Terraform review object, the following schema is followed:
+	# review: {
+	# 	change: {
+	# 		actions: ["create"],
+	# 		after: {
+	#			condition: []
+	#			members: []
+	#			project:
+	# 			role: 
+	# 		}
+	# 	},
+	# 	mode:
+	# 	name: 
+	# 	provider_name:
+	# 	type:
+	# }
+
+	# Outdated Gatekeeper format, updating to v1beta1
+	params := input.parameters
+
+	# Use input.review for TF changes (see schema above)
+	resource := input.review
+
+	resource.type == "google_project_iam_binding"
+	not resource.change.actions[0] == "delete"
+
+	unique_members := {m | m = resource.change.after.members[_]}
+	member_type_allowlist := object.get(params, "member_type_allowlist", ["projectOwner", "projectEditor", "projectViewer"])
 
 	members_to_check := [m | m = unique_members[_]; not starts_with_allowlisted_type(member_type_allowlist, m)]
+
 	member := members_to_check[_]
-	allow_sub_domains := lib.get_default(params, "allow_sub_domains", true)
+
+	allow_sub_domains := object.get(params, "allow_sub_domains", true)
+
 	no_match(allow_sub_domains, params.domains, member)
 
-	message := sprintf("IAM policy for %v contains member from unexpected domain: %v", [asset.name, member])
+	message := sprintf("IAM policy for %v contains member from unexpected domain: %v", [resource.name, member])
 
-	metadata := {"resource": asset.name, "member": member}
+	metadata := {
+		"resource": resource.name,
+		"member": member,
+		"tf_address": resource.address,
+	}
 }
 
+# Matches domains/subdomains based on regex
 no_match(allow_sub_domains, domains, member) {
 	allow_sub_domains == true
 	matched_domains := [m | m = member; re_match(sprintf("[:@.]%v$", [domains[_]]), member)]
@@ -50,6 +81,7 @@ no_match(allow_sub_domains, domains, member) {
 	count(matched_domains) == 0
 }
 
+# Determines if the member starts with allowlisted type of member (optional param)
 starts_with_allowlisted_type(allowlist, member) {
 	member_type := allowlist[_]
 	startswith(member, sprintf("%v:", [member_type]))

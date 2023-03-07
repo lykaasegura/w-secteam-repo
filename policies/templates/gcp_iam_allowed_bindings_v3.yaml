@@ -1,4 +1,4 @@
-# Copyright 2020 Google Inc.
+# Copyright 2019 Google Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,39 +15,44 @@
 apiVersion: templates.gatekeeper.sh/v1beta1
 kind: ConstraintTemplate
 metadata:
-  name: tfgcpiamcustomrolepermissionsconstraintv1
+  name: tfgcpiamallowedbindingsconstraintv3
 spec:
   crd:
     spec:
       names:
-        kind: TFGCPIAMCustomRolePermissionsConstraintV1
+        kind: TFGCPIAMAllowedBindingsConstraintV3
       validation:
         openAPIV3Schema:
-          required: ["mode", "permissions"]
           properties:
             mode:
               description: "Enforcement mode, defaults to allowlist"
               type: string
               enum: [denylist, allowlist]
-            title:
-              description: "The custom role title to scan for, found on the IAM Roles page. E.g. 'My Custom Role for BigQuery'. Default will scan all role titles."
+            # Ignore these fields, they're specific to CAI language and don't work with terraform. Asset type for us is only going to be "project." We're not looking for specific names at the moment.
+            # assetType:
+            #   description: "Restrict which asset type this policy applies to"
+            #   type: string
+            # assetNames:
+            #   description: "CAI name of asset to restrict which specific assets this policy applies to.
+            #   assetNames must have the same assetType defined above.
+            #   E.g. '//bigquery.googleapis.com/projects/my-project/datasets/my-dataset'"
+            #   type: array
+            #   items:
+            #     type: string
+            role:
+              description: "Role to restrict bindings for,
+                ex. roles/owner; Wildcards (*) supported"
               type: string
-            permissions:
-              description:
-                "Permissions to either allow or deny for the given custom role,
-                depending on mode; Wildcards (*) supported.
-                E.g. 'bigquery.datasets.*' will search for any permissions that
-                start with bigquery.datasets, such as bigquery.datasets.get
-                E.g. 'bigquery.**' will search for any permissions that start
-                with bigquery, such as bigquery.savedqueries.get, bigquery.config.get
-                E.g. '*' will search for any permissions"
+            members:
+              description: "Members to either allow or deny for the given role,
+                depending on mode; Wildcards (*) supported"
               type: array
               items:
                 type: string
   targets:
     - target: validation.resourcechange.terraform.cloud.google.com
       rego: |
-        #INLINE("validator/iam_custom_role_permissions.rego")
+        #INLINE("validator/iam_allowed_bindings.rego")
         #
         # Copyright 2022 Google LLC
         #
@@ -64,7 +69,7 @@ spec:
         # limitations under the License.
         #
         
-        package templates.gcp.TFGCPIAMCustomRolePermissionsConstraintV1
+        package templates.gcp.TFGCPIAMAllowedBindingsConstraintV3
         
         # import data.validator.gcp.lib as lib
         
@@ -77,12 +82,10 @@ spec:
         	# 	change: {
         	# 		actions: ["create"],
         	# 		after: {
-        	# 			description:
-        	# 			permissions: []
-        	# 			project:
-        	# 			role_id:
-        	# 			stage:
-        	# 			title:
+        	#			condition: []
+        	#			members: []
+        	#			project:
+        	# 			role: 
         	# 		}
         	# 	},
         	# 	mode:
@@ -97,36 +100,30 @@ spec:
         	# Use input.review for TF changes (see schema above)
         	resource := input.review
         
-        	resource.type == "google_project_iam_custom_role"
+        	resource.type == "google_project_iam_binding"
         	not resource.change.actions[0] == "delete"
         
-        	# Permissions attempting to be granted (see schema above)
-        	asset_permissions := resource.change.after.permissions[_]
-        
-        	# Get new IAM Role title (see schema above)
-        	asset_title := resource.change.after.title
-        
-        	# Get title value, if no title, use a glob (*)
-        	params_title := object.get(params, "title", "*")
-        
-        	# Will pass if glob (*), break if titles don't match otherwise
-        	check_asset_title(asset_title, params_title)
-        
-        	# Grab mode (denylist, allowlist)
+        	# Get mode from params
         	mode := object.get(params, "mode", "allowlist")
         
-        	# Use set operations to determine if any permissions match
-        	matches_found = [m | m = config_pattern(params.permissions[_]); glob.match(m, [], asset_permissions)]
+        	# Gather role and member for TF
+        	role := resource.change.after.role
+        	member := resource.change.after.members[_]
+        
+        	# Match roles between resource change and params
+        	glob.match(params.role, ["/"], role)
+        
+        	# Grab matches found using set arithmetic
+        	matches_found = [m | m = config_pattern(params.members[_]); glob.match(m, [], member)]
         	target_match_count(mode, desired_count)
         	count(matches_found) != desired_count
         
-        	message := sprintf("Role %v grants permission %v", [resource.name, asset_permissions])
+        	message := sprintf("IAM policy for %v grants %v to %v", [resource.name, role, member])
         
         	metadata := {
         		"resource": resource.name,
-        		"type": resource.type,
-        		"role_title": asset_title,
-        		"permission": asset_permissions,
+        		"member": member,
+        		"role": role,
         	}
         }
         
@@ -141,15 +138,6 @@ spec:
         
         target_match_count(mode) = 1 {
         	mode == "allowlist"
-        }
-        
-        check_asset_title(asset_title, params_title) {
-        	params_title == "*"
-        }
-        
-        check_asset_title(asset_title, params_title) {
-        	params_title != "*"
-        	lower(asset_title) == lower(params_title)
         }
         
         # If the member in constraint is written as a single "*", turn it into super

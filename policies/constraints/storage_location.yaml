@@ -1,5 +1,4 @@
-#
-# Copyright 2020 Google LLC
+# Copyright 2019 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,20 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 apiVersion: constraints.gatekeeper.sh/v1alpha1
-kind: GCPRestrictedFirewallRulesConstraintV1
-eetadata:
-  name: restrict-firewall-rule-advanced-ingress-egress
+kind: GCPStorageLocationConstraintV1
+metadata:
+  name: allow_some_storage_location
+  annotations:
+    description: Checks Cloud Storage bucket locations against allowed or disallowed
+      locations.
+    bundles.validator.forsetisecurity.org/healthcare-baseline-v1: security
 spec:
   severity: high
   match:
-    ancestries: ["organizations/**"]
+    ancestries:
+    - "organizations/**"
   parameters:
-    mode: "denylist"
-    rules:
-      - direction: "any"
-        rule_type: "denied"
-        enabled: true
-      - direction: "EGRESS"
-        rule_type: "allowed"
+    mode: "allowlist"
+    locations:
+    - us-central1
+    exemptions: []

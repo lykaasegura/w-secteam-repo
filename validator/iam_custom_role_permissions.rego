@@ -1,5 +1,5 @@
 #
-# Copyright 2020 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,37 +14,67 @@
 # limitations under the License.
 #
 
-package templates.gcp.GCPIAMCustomRolePermissionsConstraintV1
+package templates.gcp.TFGCPIAMCustomRolePermissionsConstraintV1
 
-import data.validator.gcp.lib as lib
+# import data.validator.gcp.lib as lib
 
-deny[{
+violation[{
 	"msg": message,
 	"details": metadata,
 }] {
-	constraint := input.constraint
-	lib.get_constraint_params(constraint, params)
-	asset := input.asset
+	# NOTE: For Terraform review object, the following schema is followed:
+	# review: {
+	# 	change: {
+	# 		actions: ["create"],
+	# 		after: {
+	# 			description:
+	# 			permissions: []
+	# 			project:
+	# 			role_id:
+	# 			stage:
+	# 			title:
+	# 		}
+	# 	},
+	# 	mode:
+	# 	name: 
+	# 	provider_name:
+	# 	type:
+	# }
 
-	asset.asset_type == "iam.googleapis.com/Role"
+	# Outdated Gatekeeper format, updating to v1beta1
+	params := input.parameters
 
-	asset_permissions := asset.resource.data.includedPermissions[_]
-	asset_title := asset.resource.data.title
+	# Use input.review for TF changes (see schema above)
+	resource := input.review
 
-	params_title := lib.get_default(params, "title", "*")
+	resource.type == "google_project_iam_custom_role"
+	not resource.change.actions[0] == "delete"
 
+	# Permissions attempting to be granted (see schema above)
+	asset_permissions := resource.change.after.permissions[_]
+
+	# Get new IAM Role title (see schema above)
+	asset_title := resource.change.after.title
+
+	# Get title value, if no title, use a glob (*)
+	params_title := object.get(params, "title", "*")
+
+	# Will pass if glob (*), break if titles don't match otherwise
 	check_asset_title(asset_title, params_title)
 
-	mode := lib.get_default(params, "mode", "allowlist")
+	# Grab mode (denylist, allowlist)
+	mode := object.get(params, "mode", "allowlist")
 
+	# Use set operations to determine if any permissions match
 	matches_found = [m | m = config_pattern(params.permissions[_]); glob.match(m, [], asset_permissions)]
 	target_match_count(mode, desired_count)
 	count(matches_found) != desired_count
 
-	message := sprintf("Role %v grants permission %v", [asset.name, asset_permissions])
+	message := sprintf("Role %v grants permission %v", [resource.name, asset_permissions])
 
 	metadata := {
-		"resource": asset.name,
+		"resource": resource.name,
+		"type": resource.type,
 		"role_title": asset_title,
 		"permission": asset_permissions,
 	}

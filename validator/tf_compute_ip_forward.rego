@@ -1,5 +1,5 @@
 #
-# Copyright 2019 Google LLC
+# Copyright 2022 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,29 +14,26 @@
 # limitations under the License.
 #
 
-package templates.gcp.GCPGKEEnableStackdriverMonitoringConstraintV1
+package templates.gcp.TFGCPComputeIpForwardConstraintV2
 
 import data.validator.gcp.lib as lib
 
+###########################
+# Find allowlist/denylist Violations
+###########################
 deny[{
 	"msg": message,
 	"details": metadata,
 }] {
 	constraint := input.constraint
+	lib.get_constraint_params(constraint, params)
 	asset := input.asset
-	asset.asset_type == "container.googleapis.com/Cluster"
+	asset.asset_type == "compute.googleapis.com/Instance"
 
-	cluster := asset.resource.data
-	stackdriver_monitoring_disabled(cluster)
+	instance := asset.resource.data
 
-	message := sprintf("Stackdriver monitoring is disabled in cluster %v.", [asset.name])
+	params.allow_forward == instance.canIpForward
+
+	message := sprintf("%v is not allowed to have IP forwarding enabled.", [asset.name])
 	metadata := {"resource": asset.name}
-}
-
-###########################
-# Rule Utilities
-###########################
-stackdriver_monitoring_disabled(cluster) {
-	monitoringService := lib.get_default(cluster, "monitoringService", "none")
-	monitoringService != "monitoring.googleapis.com"
 }

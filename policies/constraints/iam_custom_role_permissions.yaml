@@ -11,18 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+#
 apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: TFGCPIAMAllowedPolicyMemberDomainsConstraintV2
+kind: TFGCPIAMCustomRolePermissionsConstraintV1
 metadata:
-  name: service-accounts-only
+  name: allowlist-custom-role-permissions
   annotations:
-    description:
-      Checks that members that have been granted IAM roles belong to allowlisted
-      domains. Block IAM role bindings for non-service accounts by domain
-      (gserviceaccount.com)
+    description: Use to allowlist (allow ONLY the following permissions for all
+      custom roles) or denylist (don't allow any of the listed permissions, all
+      else passes) custom role permissions. Template supports wildcards at each
+      level of the permission spec.
 spec:
   severity: high
   parameters:
-    domains:
-      - gserviceaccount.com
+    mode: allowlist
+    # title: Optional param. Use to apply rule only to identified custom role.
+    permissions:
+      - "bigquery.datasets.get"
+      - "bigquery.tables.*"
+      - "iam.roles.create"
