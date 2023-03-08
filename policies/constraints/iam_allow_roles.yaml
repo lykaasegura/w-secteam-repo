@@ -28,5 +28,5 @@ spec:
   parameters:
     mode: "allowlist"
     roles:
-      - "roles/logging.viewer"
+      - "roles/viewer"
       # - "roles/resourcemanager.projectIamAdmin"
